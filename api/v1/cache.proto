@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package log.v1;
+option go_package="github.com/izaakdale/distcache/api/v1";
+
+message StoreRequest {
+    string key = 1;
+    string value = 2;
+}
+message StoreResponse {  
+}
+
+message FetchRequest {
+    string key = 1;
+}
+message FetchResponse {
+    string value = 2;
+}
+
+service Cache {
+    rpc Store(StoreRequest) returns (StoreResponse);
+    rpc Fetch(FetchRequest) returns (FetchResponse);
+}
