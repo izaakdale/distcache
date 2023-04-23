@@ -2,7 +2,8 @@ package app
 
 import (
 	"context"
-	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/go-redis/redis"
 	msg "github.com/izaakdale/distcache/api/v1"
@@ -51,21 +52,26 @@ func (s *Server) AllKeys(ctx context.Context, req *msg.AllKeysRequest) (*msg.All
 	return &msg.AllKeysResponse{Keys: keys}, nil
 }
 func (c *Server) AllRecords(req *msg.AllRecordsRequest, srv msg.Cache_AllRecordsServer) error {
+	var notFoundKeys []string
+	var notFound bool = false
 	for _, key := range req.Keys {
 		val, err := store.Fetch(key)
 		if err != nil {
 			if err == redis.Nil {
-				st := status.New(codes.NotFound, "a key provided was not found")
-				return st.Err()
+				notFound = true
+				notFoundKeys = append(notFoundKeys, key)
+				continue
+			} else {
+				return err
 			}
-			return err
 		}
 		ttl, err := store.GetTTL(key)
 		if err != nil {
 			return err
 		}
 		if ttl == nil {
-			return errors.New("ttl returned as nil from store")
+			st := status.New(codes.Internal, "ttl returned as nil from store")
+			return st.Err()
 		}
 		srv.Send(&msg.AllRecordsResponse{
 			Record: &msg.KVRecord{
@@ -74,6 +80,22 @@ func (c *Server) AllRecords(req *msg.AllRecordsRequest, srv msg.Cache_AllRecords
 			},
 			Ttl: *ttl,
 		})
+	}
+	if notFound {
+		// TODO logger
+		// ultimately i do want to log here, but not just a printf
+		// log.Printf("not found keys: %+v\n", notFoundKeys)
+
+		// list will be in format "not_found_keys:key1/key2/key3"
+		// clients can split on : and / to obtain keys
+		b := strings.Builder{}
+		b.WriteString("not_found_keys:")
+		for _, k := range notFoundKeys {
+			b.WriteString(fmt.Sprintf("%s/", k))
+		}
+
+		st := status.New(codes.NotFound, b.String())
+		return st.Err()
 	}
 	return nil
 }
