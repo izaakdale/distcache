@@ -1,0 +1,17 @@
+{
+    "CN": "client",
+    "hosts": [""],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "UK",
+            "L": "WA",
+            "ST": "Newport",
+            "O": "Izaak Company",
+            "OU": "Distributed Services"
+        }
+    ]
+}
