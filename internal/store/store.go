@@ -1,6 +1,7 @@
 package store
 
 import (
+	"log"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -8,7 +9,6 @@ import (
 
 var (
 	client Transactioner
-	ttl    time.Duration
 )
 
 type Transactioner interface {
@@ -16,6 +16,7 @@ type Transactioner interface {
 	Set(key string, value interface{}, expiration time.Duration) *redis.StatusCmd
 	Get(key string) *redis.StringCmd
 	Scan(cursor uint64, match string, count int64) *redis.ScanCmd
+	TTL(key string) *redis.DurationCmd
 }
 
 func Init(opts ...options) error {
@@ -24,7 +25,6 @@ func Init(opts ...options) error {
 			client = opt.txer
 		}
 		if opt.cfg != nil {
-			ttl = time.Second * time.Duration(opt.cfg.RecordTTL)
 			// set up client normal redis way
 			client = redis.NewClient(&redis.Options{
 				Addr:     opt.cfg.RedisAddr,
@@ -55,8 +55,10 @@ type options struct {
 	cfg  *Config
 }
 
-func Insert(k, v string) error {
-	return client.Set(k, v, ttl).Err()
+func Insert(k, v string, ttl int) error {
+	t := time.Second * time.Duration(ttl)
+	log.Printf("%+v\n", t)
+	return client.Set(k, v, t).Err()
 }
 func Fetch(k string) (string, error) {
 	return client.Get(k).Result()
@@ -70,6 +72,13 @@ func AllKeys(pattern string) ([]string, error) {
 	if err := iter.Err(); err != nil {
 		return nil, err
 	}
-
 	return keys, nil
+}
+func GetTTL(key string) (*int32, error) {
+	dur, err := client.TTL(key).Result()
+	if err != nil {
+		return nil, err
+	}
+	ttl := int32(dur.Seconds())
+	return &ttl, nil
 }

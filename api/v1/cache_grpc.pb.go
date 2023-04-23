@@ -25,6 +25,7 @@ type CacheClient interface {
 	Store(ctx context.Context, in *StoreRequest, opts ...grpc.CallOption) (*StoreResponse, error)
 	Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error)
 	AllKeys(ctx context.Context, in *AllKeysRequest, opts ...grpc.CallOption) (*AllKeysResponse, error)
+	AllRecords(ctx context.Context, in *AllRecordsRequest, opts ...grpc.CallOption) (Cache_AllRecordsClient, error)
 }
 
 type cacheClient struct {
@@ -62,6 +63,38 @@ func (c *cacheClient) AllKeys(ctx context.Context, in *AllKeysRequest, opts ...g
 	return out, nil
 }
 
+func (c *cacheClient) AllRecords(ctx context.Context, in *AllRecordsRequest, opts ...grpc.CallOption) (Cache_AllRecordsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Cache_ServiceDesc.Streams[0], "/api_v1.Cache/AllRecords", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &cacheAllRecordsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Cache_AllRecordsClient interface {
+	Recv() (*AllRecordsResponse, error)
+	grpc.ClientStream
+}
+
+type cacheAllRecordsClient struct {
+	grpc.ClientStream
+}
+
+func (x *cacheAllRecordsClient) Recv() (*AllRecordsResponse, error) {
+	m := new(AllRecordsResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // CacheServer is the server API for Cache service.
 // All implementations must embed UnimplementedCacheServer
 // for forward compatibility
@@ -69,6 +102,7 @@ type CacheServer interface {
 	Store(context.Context, *StoreRequest) (*StoreResponse, error)
 	Fetch(context.Context, *FetchRequest) (*FetchResponse, error)
 	AllKeys(context.Context, *AllKeysRequest) (*AllKeysResponse, error)
+	AllRecords(*AllRecordsRequest, Cache_AllRecordsServer) error
 	mustEmbedUnimplementedCacheServer()
 }
 
@@ -84,6 +118,9 @@ func (UnimplementedCacheServer) Fetch(context.Context, *FetchRequest) (*FetchRes
 }
 func (UnimplementedCacheServer) AllKeys(context.Context, *AllKeysRequest) (*AllKeysResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AllKeys not implemented")
+}
+func (UnimplementedCacheServer) AllRecords(*AllRecordsRequest, Cache_AllRecordsServer) error {
+	return status.Errorf(codes.Unimplemented, "method AllRecords not implemented")
 }
 func (UnimplementedCacheServer) mustEmbedUnimplementedCacheServer() {}
 
@@ -152,6 +189,27 @@ func _Cache_AllKeys_Handler(srv interface{}, ctx context.Context, dec func(inter
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Cache_AllRecords_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(AllRecordsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(CacheServer).AllRecords(m, &cacheAllRecordsServer{stream})
+}
+
+type Cache_AllRecordsServer interface {
+	Send(*AllRecordsResponse) error
+	grpc.ServerStream
+}
+
+type cacheAllRecordsServer struct {
+	grpc.ServerStream
+}
+
+func (x *cacheAllRecordsServer) Send(m *AllRecordsResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // Cache_ServiceDesc is the grpc.ServiceDesc for Cache service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -172,6 +230,12 @@ var Cache_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Cache_AllKeys_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "AllRecords",
+			Handler:       _Cache_AllRecords_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "api/v1/cache.proto",
 }

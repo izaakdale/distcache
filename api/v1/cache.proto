@@ -3,9 +3,13 @@ syntax = "proto3";
 package api_v1;
 option go_package="github.com/izaakdale/distcache/api/v1";
 
-message StoreRequest {
+message KVRecord {
     string key = 1;
     string value = 2;
+}
+message StoreRequest {
+    KVRecord record = 1;
+    int32 ttl = 2;
 }
 message StoreResponse {  
 }
@@ -22,9 +26,17 @@ message AllKeysRequest {
 message AllKeysResponse {
     repeated string keys = 1;
 }
+message AllRecordsRequest {
+    repeated string keys = 1;
+}
+message AllRecordsResponse {
+    KVRecord record = 1;
+    int32 ttl = 2;
+}
 
 service Cache {
     rpc Store(StoreRequest) returns (StoreResponse);
     rpc Fetch(FetchRequest) returns (FetchResponse);
     rpc AllKeys(AllKeysRequest) returns (AllKeysResponse);
+    rpc AllRecords(AllRecordsRequest) returns (stream AllRecordsResponse);
 }

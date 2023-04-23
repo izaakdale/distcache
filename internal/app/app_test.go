@@ -25,6 +25,7 @@ func (t *test) Keys(pattern string) *redis.StringSliceCmd {
 func (t *test) Scan(cursor uint64, match string, count int64) *redis.ScanCmd {
 	return redis.NewScanCmdResult([]string{"mikey", "keith"}, 0, nil)
 }
+func (t *test) TTL(key string) *redis.DurationCmd
 
 func TestXxx(t *testing.T) {
 	tx := &test{}

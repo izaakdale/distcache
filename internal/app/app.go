@@ -5,7 +5,7 @@ import (
 	"log"
 	"net"
 
-	msg "github.com/izaakdale/distcache/api/v1"
+	v1 "github.com/izaakdale/distcache/api/v1"
 	"github.com/izaakdale/distcache/internal/store"
 	"github.com/kelseyhightower/envconfig"
 	"google.golang.org/grpc"
@@ -55,7 +55,8 @@ func New() (*App, error) {
 	gsrv := grpc.NewServer()
 	reflection.Register(gsrv)
 
-	msg.RegisterCacheServer(gsrv, &srv)
+	// msg.RegisterCacheServer(gsrv, &srv)
+	v1.RegisterCacheServer(gsrv, &srv)
 
 	gAddr := fmt.Sprintf("%s:%d", spec.GRPCHost, spec.GRCPPort)
 	ln, err := net.Listen("tcp", gAddr)
