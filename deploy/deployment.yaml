@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: distcache
+spec:
+  selector:
+    matchLabels:
+      app: distcache
+  template:
+    metadata:
+      labels:
+        app: distcache
+    spec:
+      containers:
+      - name: main-app
+        image: distcache
+        imagePullPolicy: Never
+        env:
+          - name: GRPC_PORT
+            value: "5001"
+          - name: REDIS_ADDR
+            value: localhost:6379
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 5001
+      - name: sidecar-redis
+        image: redis
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 6379

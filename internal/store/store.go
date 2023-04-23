@@ -75,7 +75,7 @@ func Fetch(k string) (string, error) {
 }
 func AllKeys(pattern string) ([]string, error) {
 	var keys []string
-	iter := client.Scan(0, "*", 0).Iterator()
+	iter := client.Scan(0, pattern, 0).Iterator()
 	for iter.Next() {
 		keys = append(keys, iter.Val())
 	}
