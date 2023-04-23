@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"log"
 	"time"
 
@@ -8,7 +9,8 @@ import (
 )
 
 var (
-	client Transactioner
+	client                  Transactioner
+	ErrClientNotInitialised = errors.New("store client not set")
 )
 
 type Transactioner interface {
@@ -20,6 +22,10 @@ type Transactioner interface {
 }
 
 func Init(opts ...options) error {
+	log.Printf("%+v\n", opts)
+	if opts == nil {
+		return ErrClientNotInitialised
+	}
 	for _, opt := range opts {
 		if opt.txer != nil {
 			client = opt.txer
@@ -34,6 +40,10 @@ func Init(opts ...options) error {
 		}
 	}
 	return client.Ping().Err()
+}
+
+func Reset() {
+	client = nil
 }
 
 type Config struct {
@@ -56,8 +66,10 @@ type options struct {
 }
 
 func Insert(k, v string, ttl int) error {
+	if client == nil {
+		return ErrClientNotInitialised
+	}
 	t := time.Second * time.Duration(ttl)
-	log.Printf("%+v\n", t)
 	return client.Set(k, v, t).Err()
 }
 func Fetch(k string) (string, error) {
