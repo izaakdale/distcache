@@ -2,7 +2,6 @@ package store
 
 import (
 	"errors"
-	"log"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -22,7 +21,6 @@ type Transactioner interface {
 }
 
 func Init(opts ...options) error {
-	log.Printf("%+v\n", opts)
 	if opts == nil {
 		return ErrClientNotInitialised
 	}

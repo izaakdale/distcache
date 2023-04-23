@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"log"
 
 	"github.com/go-redis/redis"
 	msg "github.com/izaakdale/distcache/api/v1"
@@ -68,7 +67,6 @@ func (c *Server) AllRecords(req *msg.AllRecordsRequest, srv msg.Cache_AllRecords
 		if ttl == nil {
 			return errors.New("ttl returned as nil from store")
 		}
-		log.Printf("%+v:%s\n", key, val)
 		srv.Send(&msg.AllRecordsResponse{
 			Record: &msg.KVRecord{
 				Key:   key,
