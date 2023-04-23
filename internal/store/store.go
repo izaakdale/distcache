@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"log"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -37,7 +38,12 @@ func Init(opts ...options) error {
 			})
 		}
 	}
-	return client.Ping().Err()
+	if client.Ping().Err() != nil {
+		log.Printf("backing off connection for 3s\n")
+		time.Sleep(3 * time.Second)
+		Init(opts...)
+	}
+	return nil
 }
 
 func Reset() {

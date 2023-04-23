@@ -5,10 +5,12 @@ import (
 	"log"
 	"net"
 
-	v1 "github.com/izaakdale/distcache/api/v1"
+	msg "github.com/izaakdale/distcache/api/v1"
+	"github.com/izaakdale/distcache/internal/config"
 	"github.com/izaakdale/distcache/internal/store"
 	"github.com/kelseyhightower/envconfig"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -51,18 +53,29 @@ func New() (*App, error) {
 		return nil, err
 	}
 
-	srv := Server{}
-	gsrv := grpc.NewServer()
-	reflection.Register(gsrv)
-
-	// msg.RegisterCacheServer(gsrv, &srv)
-	v1.RegisterCacheServer(gsrv, &srv)
-
 	gAddr := fmt.Sprintf("%s:%d", spec.GRPCHost, spec.GRCPPort)
 	ln, err := net.Listen("tcp", gAddr)
 	if err != nil {
 		return nil, err
 	}
+
+	srv := Server{}
+	cfg, err := config.SetupTLSConfig(config.TLSConfig{
+		CertFile:      config.ServerCertFile,
+		KeyFile:       config.ServerKeyFile,
+		CAFile:        config.CAFile,
+		Server:        true,
+		ServerAddress: ln.Addr().String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	creds := credentials.NewTLS(cfg)
+
+	gsrv := grpc.NewServer(grpc.Creds(creds))
+	reflection.Register(gsrv)
+
+	msg.RegisterCacheServer(gsrv, &srv)
 
 	return &App{
 		ln:   ln,
