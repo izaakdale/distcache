@@ -24,6 +24,7 @@ const _ = grpc.SupportPackageIsVersion7
 type CacheClient interface {
 	Store(ctx context.Context, in *StoreRequest, opts ...grpc.CallOption) (*StoreResponse, error)
 	Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error)
+	AllKeys(ctx context.Context, in *AllKeysRequest, opts ...grpc.CallOption) (*AllKeysResponse, error)
 }
 
 type cacheClient struct {
@@ -52,12 +53,22 @@ func (c *cacheClient) Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.
 	return out, nil
 }
 
+func (c *cacheClient) AllKeys(ctx context.Context, in *AllKeysRequest, opts ...grpc.CallOption) (*AllKeysResponse, error) {
+	out := new(AllKeysResponse)
+	err := c.cc.Invoke(ctx, "/api_v1.Cache/AllKeys", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CacheServer is the server API for Cache service.
 // All implementations must embed UnimplementedCacheServer
 // for forward compatibility
 type CacheServer interface {
 	Store(context.Context, *StoreRequest) (*StoreResponse, error)
 	Fetch(context.Context, *FetchRequest) (*FetchResponse, error)
+	AllKeys(context.Context, *AllKeysRequest) (*AllKeysResponse, error)
 	mustEmbedUnimplementedCacheServer()
 }
 
@@ -70,6 +81,9 @@ func (UnimplementedCacheServer) Store(context.Context, *StoreRequest) (*StoreRes
 }
 func (UnimplementedCacheServer) Fetch(context.Context, *FetchRequest) (*FetchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Fetch not implemented")
+}
+func (UnimplementedCacheServer) AllKeys(context.Context, *AllKeysRequest) (*AllKeysResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AllKeys not implemented")
 }
 func (UnimplementedCacheServer) mustEmbedUnimplementedCacheServer() {}
 
@@ -120,6 +134,24 @@ func _Cache_Fetch_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Cache_AllKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AllKeysRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServer).AllKeys(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api_v1.Cache/AllKeys",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServer).AllKeys(ctx, req.(*AllKeysRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Cache_ServiceDesc is the grpc.ServiceDesc for Cache service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -134,6 +166,10 @@ var Cache_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Fetch",
 			Handler:    _Cache_Fetch_Handler,
+		},
+		{
+			MethodName: "AllKeys",
+			Handler:    _Cache_AllKeys_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

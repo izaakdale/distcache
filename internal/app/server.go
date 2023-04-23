@@ -35,3 +35,16 @@ func (s *Server) Fetch(ctx context.Context, req *msg.FetchRequest) (*msg.FetchRe
 	}
 	return &msg.FetchResponse{Value: val}, nil
 }
+func (s *Server) AllKeys(ctx context.Context, req *msg.AllKeysRequest) (*msg.AllKeysResponse, error) {
+	keys, err := store.AllKeys(req.Pattern)
+	if err != nil {
+		if err != nil {
+			if err == redis.Nil {
+				st := status.New(codes.NotFound, "no keys")
+				return nil, st.Err()
+			}
+		}
+		return nil, err
+	}
+	return &msg.AllKeysResponse{Keys: keys}, nil
+}

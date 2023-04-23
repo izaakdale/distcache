@@ -16,8 +16,15 @@ message FetchRequest {
 message FetchResponse {
     string value = 2;
 }
+message AllKeysRequest {
+    string pattern = 1;
+}
+message AllKeysResponse {
+    repeated string keys = 1;
+}
 
 service Cache {
     rpc Store(StoreRequest) returns (StoreResponse);
     rpc Fetch(FetchRequest) returns (FetchResponse);
+    rpc AllKeys(AllKeysRequest) returns (AllKeysResponse);
 }

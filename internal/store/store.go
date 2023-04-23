@@ -15,6 +15,7 @@ type Transactioner interface {
 	Ping() *redis.StatusCmd
 	Set(key string, value interface{}, expiration time.Duration) *redis.StatusCmd
 	Get(key string) *redis.StringCmd
+	Scan(cursor uint64, match string, count int64) *redis.ScanCmd
 }
 
 func Init(opts ...options) error {
@@ -59,4 +60,16 @@ func Insert(k, v string) error {
 }
 func Fetch(k string) (string, error) {
 	return client.Get(k).Result()
+}
+func AllKeys(pattern string) ([]string, error) {
+	var keys []string
+	iter := client.Scan(0, "*", 0).Iterator()
+	for iter.Next() {
+		keys = append(keys, iter.Val())
+	}
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	return keys, nil
 }
