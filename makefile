@@ -1,5 +1,7 @@
+CONFIG_PATH=${HOME}/.distcache
+
 run:
-	GRPC_PORT=5001 GRPC_HOST=localhost REDIS_ADDR=localhost:6379 DB=0 RECORD_TTL=0 go run .
+	GRPC_PORT=5001 REDIS_ADDR=localhost:6379 go run .
 
 docker_run:
 	docker run -d -p 5001:5001 \
@@ -21,3 +23,37 @@ gproto:
 	--go_opt=paths=source_relative \
 	--go-grpc_opt=paths=source_relative \
 	--proto_path=.
+
+
+init:
+	mkdir -p ${CONFIG_PATH}
+
+.PHONY: clean
+clean:
+	rm -rf ${CONFIG_PATH}
+	mkdir -p ${CONFIG_PATH}
+
+.PHONY: gencert
+gencert:
+	cfssl gencert -initca test/ca-csr.json | cfssljson -bare ca
+	cfssl gencert -ca=ca.pem \
+	-ca-key=ca-key.pem \
+	-config=test/ca-config.json \
+	-profile=server \
+	test/server-csr.json | cfssljson -bare server
+	cfssl gencert -ca=ca.pem \
+	-ca-key=ca-key.pem \
+	-config=test/ca-config.json \
+	-profile=client \
+	-cn="root" \
+	test/client-csr.json | cfssljson -bare root-client
+	cfssl gencert -ca=ca.pem \
+	-ca-key=ca-key.pem \
+	-config=test/ca-config.json \
+	-profile=client \
+	-cn="nobody" \
+	test/client-csr.json | cfssljson -bare nobody-client
+	mv *.pem *csr ${CONFIG_PATH}
+
+secret:
+	kubectl create secret tls distcache-security --cert=/home/izaakdale/.distcache/server.pem --key=/home/izaakdale/.distcache/server-key.pem
