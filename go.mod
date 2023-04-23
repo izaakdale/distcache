@@ -4,8 +4,7 @@ go 1.20
 
 require (
 	github.com/go-redis/redis v6.15.9+incompatible
-	github.com/izaakdale/lib v0.0.0-20230419094706-b17b97516cb1
-	github.com/julienschmidt/httprouter v1.3.0
+	github.com/kelseyhightower/envconfig v1.4.0
 	google.golang.org/grpc v1.54.0
 	google.golang.org/protobuf v1.30.0
 )

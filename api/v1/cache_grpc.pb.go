@@ -36,7 +36,7 @@ func NewCacheClient(cc grpc.ClientConnInterface) CacheClient {
 
 func (c *cacheClient) Store(ctx context.Context, in *StoreRequest, opts ...grpc.CallOption) (*StoreResponse, error) {
 	out := new(StoreResponse)
-	err := c.cc.Invoke(ctx, "/log.v1.Cache/Store", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/api_v1.Cache/Store", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (c *cacheClient) Store(ctx context.Context, in *StoreRequest, opts ...grpc.
 
 func (c *cacheClient) Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error) {
 	out := new(FetchResponse)
-	err := c.cc.Invoke(ctx, "/log.v1.Cache/Fetch", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/api_v1.Cache/Fetch", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func _Cache_Store_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/log.v1.Cache/Store",
+		FullMethod: "/api_v1.Cache/Store",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CacheServer).Store(ctx, req.(*StoreRequest))
@@ -112,7 +112,7 @@ func _Cache_Fetch_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/log.v1.Cache/Fetch",
+		FullMethod: "/api_v1.Cache/Fetch",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CacheServer).Fetch(ctx, req.(*FetchRequest))
@@ -124,7 +124,7 @@ func _Cache_Fetch_Handler(srv interface{}, ctx context.Context, dec func(interfa
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Cache_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "log.v1.Cache",
+	ServiceName: "api_v1.Cache",
 	HandlerType: (*CacheServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

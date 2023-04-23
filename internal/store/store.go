@@ -6,8 +6,10 @@ import (
 	"github.com/go-redis/redis"
 )
 
-var client Transactioner
-var ttl time.Duration
+var (
+	client Transactioner
+	ttl    time.Duration
+)
 
 type Transactioner interface {
 	Ping() *redis.StatusCmd
