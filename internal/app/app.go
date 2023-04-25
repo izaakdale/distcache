@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/hashicorp/serf/serf"
 	msg "github.com/izaakdale/distcache/api/v1"
 	"github.com/izaakdale/distcache/internal/store"
 	"github.com/kelseyhightower/envconfig"
@@ -16,7 +17,8 @@ import (
 )
 
 var (
-	spec specification
+	spec              specification
+	clusterMembership *serf.Serf
 )
 
 type specification struct {
@@ -97,6 +99,7 @@ func (a *App) Run() error {
 	if err != nil {
 		return err
 	}
+	clusterMembership = cluster
 
 	// create error channel for the grpc server to relay information back to app
 	errCh := make(chan error)

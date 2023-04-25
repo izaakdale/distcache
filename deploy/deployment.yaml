@@ -42,13 +42,10 @@ spec:
               memory: "128Mi"
               cpu: "500m"
           ports:
-          - containerPort: 5001
-          - containerPort: 7777
-            protocol: "UDP"
-            name: serfudp
-          - containerPort: 7777
-            protocol: "TCP"
-            name: serftcp
+          - name: grpc
+            containerPort: 5001
+          - name: serf
+            containerPort: 7777
         - name: sidecar-redis
           image: redis
           resources:

@@ -1,15 +1,23 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/serf/serf"
+	v1 "github.com/izaakdale/distcache/api/v1"
+	"github.com/izaakdale/distcache/internal/store"
 	"github.com/pkg/errors"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type clusterSpec struct {
@@ -22,7 +30,18 @@ type clusterSpec struct {
 	Name          string `envconfig:"NAME"`
 }
 
+type connectionPool map[string]*grpc.ClientConn
+
+func (c connectionPool) Close() {
+	for _, conn := range c {
+		conn.Close()
+	}
+}
+
+var pool connectionPool
+
 func setupCluster(bindAddr, bindPort, advertiseAddr, advertisePort, name string) (*serf.Serf, chan serf.Event, error) {
+	pool = make(connectionPool)
 	// allows separation of members with the same name from env
 	id := strings.Split(uuid.NewString(), "-")[0]
 	uname := fmt.Sprintf("%s-%s", spec.clutserCfg.Name, id)
@@ -42,6 +61,10 @@ func setupCluster(bindAddr, bindPort, advertiseAddr, advertisePort, name string)
 	conf.MemberlistConfig.BindPort, _ = strconv.Atoi(bindPort)
 	conf.MemberlistConfig.ProtocolVersion = 3 // Version 3 enable the ability to bind different port for each agent
 	conf.NodeName = uname
+
+	conf.Tags = map[string]string{
+		"grpc_addr": fmt.Sprintf("%s:%d", bindAddr, spec.GRCPPort),
+	}
 
 	events := make(chan serf.Event)
 	conf.EventCh = events
@@ -88,21 +111,82 @@ func handleSerfEvent(e serf.Event, cluster *serf.Serf) {
 	}
 }
 
-func handleJoin(m serf.Member) {
+func handleJoin(m serf.Member) error {
 	// 1. create a new grpc connection to the member
 	// 2. keep conntection local to reuse
 	// 3. request all its records
 	// --- this may seem counter intuitive, no matter how new a member is it might have received a key store request,
 	// --- also, you receive member joins from other members when you first join, so a new member will collect records
-
 	log.Printf("member joined %s @ %s\n", m.Name, m.Addr)
+
+	conn, ok := pool[m.Name]
+	log.Printf("after pool ok\n")
+	if !ok {
+		log.Printf("inside not ok \n")
+
+		// grpcSocket := fmt.Sprintf("%s:%d", m.Addr, m.Port)
+		grpcSocket, ok := m.Tags["grpc_addr"]
+		if !ok {
+			return fmt.Errorf("grpc address tag was not included in the event")
+		}
+
+		log.Printf("grpcsocket --- %+v\n", grpcSocket)
+
+		var err error
+		conn, err = grpc.Dial(grpcSocket, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Fatalf("Failed to connect to %s", grpcSocket)
+		}
+		pool[m.Name] = conn
+		log.Printf("added to pool\n")
+	}
+	client := v1.NewCacheClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	log.Printf("about to fetch all keys\n")
+	keyResp, err := client.AllKeys(ctx, &v1.AllKeysRequest{
+		Pattern: "",
+	})
+	if err != nil {
+		return err
+	}
+	log.Printf("about to fetch all records\n")
+	recStream, err := client.AllRecords(ctx, &v1.AllRecordsRequest{
+		Keys: keyResp.Keys,
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Printf("streaming records\n")
+	for {
+		record, err := recStream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		log.Printf("inserting\n")
+		if err = store.Insert(record.Record.Key, record.Record.Value, int(record.Ttl)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func handleCustomEvent(e serf.UserEvent) error {
 	// custom events will be used to relay information about a new store request
 	// since the load balancer will send the request to one server, we need to broadcast what to store
 	// 1. store information from event
-
+	var req v1.StoreRequest
+	if err := json.Unmarshal(e.Payload, &req); err != nil {
+		return err
+	}
+	if err := store.Insert(req.Record.Key, req.Record.Value, int(req.Ttl)); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -119,11 +203,4 @@ func handleLeave(m serf.Member) {
 func handleUpdate(m serf.Member) {
 	// again, no action needed
 	log.Printf("receiving update from %s @ %s\n", m.Name, m.Addr)
-}
-
-type throwAway struct {
-}
-
-func (t *throwAway) Write(b []byte) (int, error) {
-	return 0, nil
 }

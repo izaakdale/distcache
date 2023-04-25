@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -22,6 +23,13 @@ type Server struct {
 func (s *Server) Store(ctx context.Context, req *msg.StoreRequest) (*msg.StoreResponse, error) {
 	err := store.Insert(req.Record.Key, req.Record.Value, int(req.Ttl))
 	if err != nil {
+		return nil, err
+	}
+	bytes, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	if err := clusterMembership.UserEvent("value-stored", bytes, false); err != nil {
 		return nil, err
 	}
 	return &msg.StoreResponse{}, nil
