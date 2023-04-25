@@ -9,11 +9,15 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/serf/serf"
+	v1 "github.com/izaakdale/distcache/api/v1"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/pkg/errors"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var spec specification
@@ -29,8 +33,6 @@ type specification struct {
 }
 
 func main() {
-	// app.Must(app.New()).Run()
-
 	envconfig.Process("", &spec)
 	log.Printf("%+v\n", spec)
 
@@ -41,6 +43,7 @@ func main() {
 		panic(err)
 	}
 
+	// allows separation of members with the same name from env
 	id := strings.Split(uuid.NewString(), "-")[0]
 	name := fmt.Sprintf("%s-%s", spec.Name, id)
 
@@ -86,6 +89,11 @@ Loop:
 						}
 						handleUpdate(member)
 					}
+				case serf.EventUser:
+					err := handleCustomEvent(e.(serf.UserEvent))
+					if err != nil {
+						log.Printf("oopsiiiess\n")
+					}
 				}
 			}
 		case <-c:
@@ -118,9 +126,18 @@ func setupCluster(bindAddr, bindPort, advertiseAddr, advertisePort, clusterAddr,
 	}
 
 	if clusterAddr != "" && clusterPort != "" {
-		_, err = cluster.Join([]string{clusterAddr + ":" + clusterPort}, true)
+		joinAddr := fmt.Sprintf("%s:%s", spec.ClusterAddr, spec.ClusterPort)
+		_, err = cluster.Join([]string{joinAddr}, true)
 		if err != nil {
 			log.Printf("Couldn't join cluster, starting own: %v\n", err)
+		} else {
+			go func() {
+				for {
+					time.Sleep(5 * time.Second)
+					// do not coalesce events since our use case needs all keys and values stored
+					cluster.UserEvent(spec.Name, []byte("------hello from event channel------"), false)
+				}
+			}()
 		}
 	}
 
@@ -128,7 +145,23 @@ func setupCluster(bindAddr, bindPort, advertiseAddr, advertisePort, clusterAddr,
 }
 
 func handleJoin(m serf.Member) {
+	grpcSocket := fmt.Sprintf("%s:%d", m.Addr, m.Port)
+
+	conn, err := grpc.Dial(grpcSocket, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("Failed to connect to %s", grpcSocket)
+	}
+	defer conn.Close()
+
+	v1.NewCacheClient(conn)
+
 	log.Printf("member joined %s @ %s\n", m.Name, m.Addr)
+}
+
+func handleCustomEvent(e serf.UserEvent) error {
+	log.Printf("---------%+v---------\n", string(e.Name))
+	log.Printf("---------%+v---------\n", string(e.Payload))
+	return nil
 }
 
 func handleLeave(m serf.Member) {
