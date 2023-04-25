@@ -4,10 +4,10 @@ WORKDIR /
 COPY . .
 RUN go mod download
 
-RUN go build -o distcache .
+RUN go build -o serfer .
 
 FROM scratch
 WORKDIR /bin
-COPY --from=builder /distcache /bin
+COPY --from=builder /serfer /bin
 
-CMD [ "/bin/distcache" ]
+CMD [ "/bin/serfer" ]
