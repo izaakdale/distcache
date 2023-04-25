@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: serfer
+  name: distcache
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
-      app: serfer
+      app: distcache
   template:
     metadata:
       labels:
-        app: serfer
+        app: distcache
     spec:
       containers:
         - name: main-app
-          image: serfer
+          image: distcache
           imagePullPolicy: Never
           env:
             - name: GRPC_PORT
@@ -28,15 +28,15 @@ spec:
             - name: BIND_PORT
               value: "7777"
             - name: ADVERTISE_ADDR
-              value: serfer-svc.default.svc.cluster.local
+              value: distcache-svc.default.svc.cluster.local
             - name: ADVERTISE_PORT
               value: "7777"
             - name: CLUSTER_ADDR
-              value: serfer-svc.default.svc.cluster.local
+              value: distcache-svc.default.svc.cluster.local
             - name: CLUSTER_PORT
               value: "7777"
             - name: NAME
-              value: serfer
+              value: distcache
           resources:
             limits:
               memory: "128Mi"

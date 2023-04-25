@@ -4,17 +4,20 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 
 	msg "github.com/izaakdale/distcache/api/v1"
-	"github.com/izaakdale/distcache/internal/config"
 	"github.com/izaakdale/distcache/internal/store"
 	"github.com/kelseyhightower/envconfig"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 )
 
-var spec specification
+var (
+	spec specification
+)
 
 type specification struct {
 	GRPCHost  string `envconfig:"GRPC_HOST"`
@@ -23,6 +26,8 @@ type specification struct {
 	Password  string `envconfig:"PASSWORD"`
 	DB        int    `envconfig:"DB"`
 	RecordTTL int    `envconfig:"RECORD_TTL"`
+
+	clutserCfg clusterSpec
 }
 
 type App struct {
@@ -30,13 +35,11 @@ type App struct {
 	gsrv *grpc.Server
 }
 
-func (a *App) Run() error {
-	log.Printf("running on: %s", a.ln.Addr().String())
-	return a.gsrv.Serve(a.ln)
-}
-
 func New() (*App, error) {
 	if err := envconfig.Process("", &spec); err != nil {
+		return nil, err
+	}
+	if err := envconfig.Process("", &spec.clutserCfg); err != nil {
 		return nil, err
 	}
 
@@ -60,19 +63,19 @@ func New() (*App, error) {
 	}
 
 	srv := Server{}
-	cfg, err := config.SetupTLSConfig(config.TLSConfig{
-		CertFile:      config.ServerCertFile,
-		KeyFile:       config.ServerKeyFile,
-		CAFile:        config.CAFile,
-		Server:        true,
-		ServerAddress: ln.Addr().String(),
-	})
+	// cfg, err := config.SetupTLSConfig(config.TLSConfig{
+	// 	CertFile:      config.ServerCertFile,
+	// 	KeyFile:       config.ServerKeyFile,
+	// 	CAFile:        config.CAFile,
+	// 	Server:        true,
+	// 	ServerAddress: ln.Addr().String(),
+	// })
 	if err != nil {
 		return nil, err
 	}
-	creds := credentials.NewTLS(cfg)
+	// creds := credentials.NewTLS(cfg)
 
-	gsrv := grpc.NewServer(grpc.Creds(creds))
+	gsrv := grpc.NewServer() //grpc.Creds(creds))
 	reflection.Register(gsrv)
 
 	msg.RegisterCacheServer(gsrv, &srv)
@@ -81,6 +84,47 @@ func New() (*App, error) {
 		ln:   ln,
 		gsrv: gsrv,
 	}, nil
+}
+
+func (a *App) Run() error {
+	cluster, evCh, err := setupCluster(
+		spec.clutserCfg.BindAddr,      // BIND defines where the agent listens for incomming connections
+		spec.clutserCfg.BindPort,      // in k8s this would be the ip and port of the pod/container
+		spec.clutserCfg.AdvertiseAddr, // ADVERTISE defines where the agent is reachable
+		spec.clutserCfg.AdvertisePort, // in k8s this correlates to the cluster ip service
+		spec.clutserCfg.Name,          // NAME must be unique, which is not possible for replicas with env vars. Uniqueness handled in setup
+	)
+	if err != nil {
+		return err
+	}
+
+	// create error channel for the grpc server to relay information back to app
+	errCh := make(chan error)
+	go func(ch chan error) {
+		ch <- a.gsrv.Serve(a.ln)
+	}(errCh)
+
+	// signal channel for the os/k8s
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+Loop:
+	for {
+		select {
+		// shutdown
+		case <-c:
+			break Loop
+		// serf event channel
+		case e := <-evCh:
+			handleSerfEvent(e, cluster)
+		// grpc error
+		case err := <-errCh:
+			cluster.Leave()
+			return err
+		}
+	}
+	cluster.Leave()
+	return nil
 }
 
 func Must(a *App, err error) *App {

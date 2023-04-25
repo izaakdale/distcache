@@ -1,7 +1,14 @@
 CONFIG_PATH=${HOME}/.distcache
 
 run:
-	GRPC_PORT=5001 REDIS_ADDR=localhost:6379 go run .
+	GRPC_PORT=5001 \
+	REDIS_ADDR=localhost:6379 \
+	BIND_ADDR=127.0.0.1 \
+	BIND_PORT=7777 \
+ 	ADVERTISE_ADDR=127.0.0.1 \
+	ADVERTISE_PORT=7777 \
+	NAME=a1 \
+	go run .
 
 docker_run:
 	docker run -d -p 5001:5001 \
@@ -36,7 +43,7 @@ docker_run_serf2:
 	--name serfer2 serfer
 
 docker:
-	docker build -t serfer .
+	docker build -t distcache .
 
 .PHONY: gproto
 gproto:
