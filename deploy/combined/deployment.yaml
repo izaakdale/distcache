@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: serfer
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: serfer
+  template:
+    metadata:
+      labels:
+        app: serfer
+    spec:
+      containers:
+        - name: main-app
+          image: serfer
+          imagePullPolicy: Never
+          env:
+            - name: GRPC_PORT
+              value: "5001"
+            - name: REDIS_ADDR
+              value: localhost:6379
+            - name: BIND_ADDR
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: BIND_PORT
+              value: "7777"
+            - name: ADVERTISE_ADDR
+              value: serfer-svc.default.svc.cluster.local
+            - name: ADVERTISE_PORT
+              value: "7777"
+            - name: CLUSTER_ADDR
+              value: serfer-svc.default.svc.cluster.local
+            - name: CLUSTER_PORT
+              value: "7777"
+            - name: NAME
+              value: serfer
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          ports:
+          - containerPort: 5001
+          - containerPort: 7777
+            protocol: "UDP"
+            name: serfudp
+          - containerPort: 7777
+            protocol: "TCP"
+            name: serftcp
+        - name: sidecar-redis
+          image: redis
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          ports:
+          - containerPort: 6379

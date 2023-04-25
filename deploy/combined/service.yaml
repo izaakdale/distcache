@@ -2,8 +2,8 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: serfer-follower-svc
-  name: serfer-follower-svc
+    app: serfer-svc
+  name: serfer-svc
 spec:
   ports:
   - name: grpc
@@ -19,5 +19,5 @@ spec:
     port: 7777
     targetPort: 7777
   selector:
-    app: serfer-follower
+    app: serfer
   type: ClusterIP
