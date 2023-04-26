@@ -136,3 +136,10 @@ func Must(a *App, err error) *App {
 	}
 	return a
 }
+
+func MustRun() {
+	app := Must(New())
+	if err := app.Run(); err != nil {
+		log.Fatalf("error running: %e", err)
+	}
+}
