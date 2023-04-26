@@ -1,8 +1,7 @@
 {
-    "CN": "127.0.0.1",
+    "CN": "test.tester",
     "hosts": [
-        "localhost",
-        "127.0.0.1"
+        "test.tester"
     ],
     "key": {
         "algo": "rsa",

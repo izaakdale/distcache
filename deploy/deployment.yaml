@@ -37,6 +37,8 @@ spec:
               value: "7777"
             - name: NAME
               value: distcache
+            - name: CONFIG_DIR
+              value: /etc/creds
           resources:
             limits:
               memory: "128Mi"
@@ -46,6 +48,10 @@ spec:
             containerPort: 5001
           - name: serf
             containerPort: 7777
+          # volumeMounts:
+          # - name: server-creds
+          #   mountPath: /etc/creds
+          #   readOnly: true
         - name: sidecar-redis
           image: redis
           resources:
@@ -54,3 +60,14 @@ spec:
               cpu: "500m"
           ports:
           - containerPort: 6379
+
+      # volumes:
+      # - name: server-creds
+      #   secret:
+      #     secretName: server-creds
+      # - name: client-creds
+      #   secret:
+      #     secretName: client-creds
+      # - name: ca-creds
+      #   secret:
+      #     secretName: ca-creds

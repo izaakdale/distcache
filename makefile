@@ -65,19 +65,21 @@ clean:
 
 .PHONY: gencert
 gencert:
-	cfssl gencert -initca test/ca-csr.json | cfssljson -bare ca
+	cfssl gencert -initca cert/ca-csr.json | cfssljson -bare ca
 	cfssl gencert -ca=ca.pem \
 	-ca-key=ca-key.pem \
-	-config=test/ca-config.json \
+	-config=cert/ca-config.json \
 	-profile=server \
-	test/server-csr.json | cfssljson -bare server
+	cert/server-csr.json | cfssljson -bare server
 	cfssl gencert -ca=ca.pem \
 	-ca-key=ca-key.pem \
-	-config=test/ca-config.json \
+	-config=cert/ca-config.json \
 	-profile=client \
 	-cn="root" \
-	test/client-csr.json | cfssljson -bare client
+	cert/client-csr.json | cfssljson -bare client
 	mv *.pem *csr ${CONFIG_PATH}
 
 secret:
-	kubectl create secret tls distcache-security --cert=/home/izaakdale/.distcache/server.pem --key=/home/izaakdale/.distcache/server-key.pem
+	kubectl create secret tls server-creds --cert=/home/izaakdale/.distcache/server.pem --key=/home/izaakdale/.distcache/server-key.pem
+	kubectl create secret tls client-creds --cert=/home/izaakdale/.distcache/client.pem --key=/home/izaakdale/.distcache/client-key.pem
+	kubectl create secret tls ca-creds --cert=/home/izaakdale/.distcache/ca.pem --key=/home/izaakdale/.distcache/ca-key.pem
