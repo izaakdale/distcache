@@ -18,7 +18,7 @@ message FetchRequest {
     string key = 1;
 }
 message FetchResponse {
-    string value = 2;
+    string value = 1;
 }
 message AllKeysRequest {
     string pattern = 1;

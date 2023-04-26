@@ -80,6 +80,6 @@ gencert:
 	mv *.pem *csr ${CONFIG_PATH}
 
 secret:
-	kubectl create secret tls server-creds --cert=/home/izaakdale/.distcache/server.pem --key=/home/izaakdale/.distcache/server-key.pem
-	kubectl create secret tls client-creds --cert=/home/izaakdale/.distcache/client.pem --key=/home/izaakdale/.distcache/client-key.pem
-	kubectl create secret tls ca-creds --cert=/home/izaakdale/.distcache/ca.pem --key=/home/izaakdale/.distcache/ca-key.pem
+	kubectl create secret tls server-creds --cert=${CONFIG_PATH}/server.pem --key=${CONFIG_PATH}/server-key.pem
+	kubectl create secret tls client-creds --cert=${CONFIG_PATH}/client.pem --key=${CONFIG_PATH}/client-key.pem
+	kubectl create secret tls ca-creds --cert=${CONFIG_PATH}/ca.pem --key=${CONFIG_PATH}/ca-key.pem
