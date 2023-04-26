@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: distcache
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: distcache
@@ -38,7 +38,7 @@ spec:
             - name: NAME
               value: distcache
             - name: CONFIG_DIR
-              value: /etc/creds
+              value: /etc
           resources:
             limits:
               memory: "128Mi"
@@ -48,10 +48,16 @@ spec:
             containerPort: 5001
           - name: serf
             containerPort: 7777
-          # volumeMounts:
-          # - name: server-creds
-          #   mountPath: /etc/creds
-          #   readOnly: true
+          volumeMounts:
+          - name: server-creds
+            mountPath: /etc/server-creds
+            readOnly: true
+          - name: client-creds
+            mountPath: /etc/client-creds
+            readOnly: true
+          - name: ca-creds
+            mountPath: /etc/ca-creds
+            readOnly: true
         - name: sidecar-redis
           image: redis
           resources:
@@ -60,14 +66,13 @@ spec:
               cpu: "500m"
           ports:
           - containerPort: 6379
-
-      # volumes:
-      # - name: server-creds
-      #   secret:
-      #     secretName: server-creds
-      # - name: client-creds
-      #   secret:
-      #     secretName: client-creds
-      # - name: ca-creds
-      #   secret:
-      #     secretName: ca-creds
+      volumes:
+      - name: server-creds
+        secret:
+          secretName: server-creds
+      - name: client-creds
+        secret:
+          secretName: client-creds
+      - name: ca-creds
+        secret:
+          secretName: ca-creds

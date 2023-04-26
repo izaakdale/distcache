@@ -72,9 +72,9 @@ func New() (*App, error) {
 	// 	Server:        true,
 	// 	ServerAddress: ln.Addr().String(),
 	// })
-	if err != nil {
-		return nil, err
-	}
+	// if err != nil {
+	// 	return nil, err
+	// }
 	// creds := credentials.NewTLS(cfg)
 
 	gsrv := grpc.NewServer() //grpc.Creds(creds))

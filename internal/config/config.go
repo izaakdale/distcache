@@ -6,11 +6,11 @@ import (
 )
 
 var (
-	CAFile             = configFile("ca.pem")
-	ServerCertFile     = configFile("server.pem")
-	ServerKeyFile      = configFile("server-key.pem")
-	RootClientCertFile = configFile("client.pem")
-	RootClientKeyFile  = configFile("client-key.pem")
+	CAFile             = configFile("ca-creds/tls.crt")
+	ServerCertFile     = configFile("server-creds/tls.crt")
+	ServerKeyFile      = configFile("server-creds/tls.key")
+	RootClientCertFile = configFile("client-creds/tls.crt")
+	RootClientKeyFile  = configFile("client-creds/tls.key")
 )
 
 func configFile(filename string) string {
