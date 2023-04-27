@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/serf/serf"
-	v1 "github.com/izaakdale/distcache/api/v1"
+	api "github.com/izaakdale/distcache/api/v1"
 	"github.com/izaakdale/distcache/internal/store"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
@@ -33,8 +33,9 @@ type clusterSpec struct {
 type connectionPool map[string]*grpc.ClientConn
 
 func (c connectionPool) Close() {
-	for _, conn := range c {
+	for k, conn := range c {
 		conn.Close()
+		delete(c, k)
 	}
 }
 
@@ -135,24 +136,24 @@ func handleJoin(m serf.Member) error {
 		var err error
 		conn, err = grpc.Dial(grpcSocket, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			log.Fatalf("Failed to connect to %s", grpcSocket)
+			return fmt.Errorf("Failed to connect to %s", grpcSocket)
 		}
 		pool[m.Name] = conn
 		log.Printf("added to pool\n")
 	}
-	client := v1.NewCacheClient(conn)
+	client := api.NewCacheClient(conn)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	log.Printf("about to fetch all keys\n")
-	keyResp, err := client.AllKeys(ctx, &v1.AllKeysRequest{
+	keyResp, err := client.AllKeys(ctx, &api.AllKeysRequest{
 		Pattern: "",
 	})
 	if err != nil {
 		return err
 	}
 	log.Printf("about to fetch all records\n")
-	recStream, err := client.AllRecords(ctx, &v1.AllRecordsRequest{
+	recStream, err := client.AllRecords(ctx, &api.AllRecordsRequest{
 		Keys: keyResp.Keys,
 	})
 	if err != nil {
@@ -180,7 +181,7 @@ func handleCustomEvent(e serf.UserEvent) error {
 	// custom events will be used to relay information about a new store request
 	// since the load balancer will send the request to one server, we need to broadcast what to store
 	// 1. store information from event
-	var req v1.StoreRequest
+	var req api.StoreRequest
 	if err := json.Unmarshal(e.Payload, &req); err != nil {
 		return err
 	}

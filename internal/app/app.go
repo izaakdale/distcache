@@ -89,6 +89,8 @@ func New() (*App, error) {
 }
 
 func (a *App) Run() error {
+	defer pool.Close()
+
 	cluster, evCh, err := setupCluster(
 		spec.clutserCfg.BindAddr,      // BIND defines where the agent listens for incomming connections
 		spec.clutserCfg.BindPort,      // in k8s this would be the ip and port of the pod/container
@@ -100,6 +102,7 @@ func (a *App) Run() error {
 		return err
 	}
 	clusterMembership = cluster
+	defer cluster.Leave()
 
 	// create error channel for the grpc server to relay information back to app
 	errCh := make(chan error)
@@ -108,25 +111,23 @@ func (a *App) Run() error {
 	}(errCh)
 
 	// signal channel for the os/k8s
-	c := make(chan os.Signal, 2)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	shCh := make(chan os.Signal, 2)
+	signal.Notify(shCh, os.Interrupt, syscall.SIGTERM)
 
 Loop:
 	for {
 		select {
 		// shutdown
-		case <-c:
+		case <-shCh:
 			break Loop
 		// serf event channel
-		case e := <-evCh:
-			handleSerfEvent(e, cluster)
+		case ev := <-evCh:
+			handleSerfEvent(ev, cluster)
 		// grpc error
 		case err := <-errCh:
-			cluster.Leave()
 			return err
 		}
 	}
-	cluster.Leave()
 	return nil
 }
 
