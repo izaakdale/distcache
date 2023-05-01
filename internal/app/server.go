@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/izaakdale/distcache/internal/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // ensure our server adheres to grpc cache server
@@ -25,7 +25,7 @@ func (s *Server) Store(ctx context.Context, req *api.StoreRequest) (*api.StoreRe
 	if err != nil {
 		return nil, err
 	}
-	bytes, err := json.Marshal(req)
+	bytes, err := proto.Marshal(req)
 	if err != nil {
 		return nil, err
 	}

@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -18,6 +17,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
 )
 
 type Specification struct {
@@ -161,7 +161,7 @@ func handleCustomEvent(e serf.UserEvent) error {
 	// since the load balancer will send the request to one server, we need to broadcast what to store
 	// 1. store information from event
 	var req api.StoreRequest
-	if err := json.Unmarshal(e.Payload, &req); err != nil {
+	if err := proto.Unmarshal(e.Payload, &req); err != nil {
 		return err
 	}
 	if err := store.Insert(req.Record.Key, req.Record.Value, int(req.Ttl)); err != nil {
