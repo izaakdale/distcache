@@ -1,4 +1,4 @@
-package app
+package cluster
 
 import (
 	"encoding/json"
@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type clusterSpec struct {
+type Specification struct {
 	BindAddr      string `envconfig:"BIND_ADDR"`
 	BindPort      string `envconfig:"BIND_PORT"`
 	AdvertiseAddr string `envconfig:"ADVERTISE_ADDR"`
@@ -41,15 +41,15 @@ func (c connectionPool) Close() {
 
 var pool connectionPool
 
-func setupCluster(bindAddr, bindPort, advertiseAddr, advertisePort, name string) (*serf.Serf, chan serf.Event, error) {
+func SetupNode(bindAddr, bindPort, advertiseAddr, advertisePort, name string, grpcPort int) (*serf.Serf, chan serf.Event, error) {
 	pool = make(connectionPool)
 	// allows separation of members with the same name from env
 	id := strings.Split(uuid.NewString(), "-")[0]
-	uname := fmt.Sprintf("%s-%s", spec.clutserCfg.Name, id)
+	uname := fmt.Sprintf("%s-%s", name, id)
 
 	// since in k8s you will want to advertise the cluster ip service which changes,
 	// we will enter the name in the format <svc-name>.<namespace>.svc.cluster.local to resolve the ip
-	res, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", spec.clutserCfg.AdvertiseAddr, spec.clutserCfg.AdvertisePort))
+	res, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", advertiseAddr, advertisePort))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -64,45 +64,45 @@ func setupCluster(bindAddr, bindPort, advertiseAddr, advertisePort, name string)
 	conf.NodeName = uname
 
 	conf.Tags = map[string]string{
-		"grpc_addr": fmt.Sprintf("%s:%d", bindAddr, spec.GRCPPort),
+		"grpc_addr": fmt.Sprintf("%s:%d", bindAddr, grpcPort),
 	}
 
 	events := make(chan serf.Event)
 	conf.EventCh = events
 
-	cluster, err := serf.Create(conf)
+	node, err := serf.Create(conf)
 	if err != nil {
 		log.Printf("inside error: %e\n", err)
-		return nil, nil, errors.Wrap(err, "Couldn't create cluster")
+		return nil, nil, errors.Wrap(err, "couldn't create serf instance")
 	}
 
-	_, err = cluster.Join([]string{res.String()}, true)
+	_, err = node.Join([]string{res.String()}, true)
 	if err != nil {
-		log.Printf("Couldn't join cluster, starting own: %v\n", err)
+		log.Printf("couldn't join cluster, starting own: %v\n", err)
 	}
 
-	return cluster, events, nil
+	return node, events, nil
 }
 
-func handleSerfEvent(e serf.Event, cluster *serf.Serf) {
+func HandleSerfEvent(e serf.Event, node *serf.Serf) {
 	switch e.EventType() {
 	case serf.EventMemberJoin:
 		for _, member := range e.(serf.MemberEvent).Members {
-			if isLocal(cluster, member) {
+			if isLocal(node, member) {
 				continue
 			}
 			handleJoin(member)
 		}
 	case serf.EventMemberLeave, serf.EventMemberFailed:
 		for _, member := range e.(serf.MemberEvent).Members {
-			if isLocal(cluster, member) {
+			if isLocal(node, member) {
 				continue
 			}
 			handleLeave(member)
 		}
 	case serf.EventMemberUpdate:
 		for _, member := range e.(serf.MemberEvent).Members {
-			if isLocal(cluster, member) {
+			if isLocal(node, member) {
 				continue
 			}
 			handleUpdate(member)
@@ -113,54 +113,34 @@ func handleSerfEvent(e serf.Event, cluster *serf.Serf) {
 }
 
 func handleJoin(m serf.Member) error {
-	// 1. create a new grpc connection to the member
-	// 2. keep conntection local to reuse
-	// 3. request all its records
-	// --- this may seem counter intuitive, no matter how new a member is it might have received a key store request,
-	// --- also, you receive member joins from other members when you first join, so a new member will collect records
 	log.Printf("member joined %s @ %s\n", m.Name, m.Addr)
-
-	conn, ok := pool[m.Name]
-	log.Printf("after pool ok\n")
+	grpcSocket, ok := m.Tags["grpc_addr"]
 	if !ok {
-		log.Printf("inside not ok \n")
+		return fmt.Errorf("grpc address tag was not included in the event")
+	}
 
-		// grpcSocket := fmt.Sprintf("%s:%d", m.Addr, m.Port)
-		grpcSocket, ok := m.Tags["grpc_addr"]
-		if !ok {
-			return fmt.Errorf("grpc address tag was not included in the event")
-		}
-
-		log.Printf("grpcsocket --- %+v\n", grpcSocket)
-
-		var err error
-		conn, err = grpc.Dial(grpcSocket, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			return fmt.Errorf("Failed to connect to %s", grpcSocket)
-		}
-		pool[m.Name] = conn
-		log.Printf("added to pool\n")
+	var err error
+	conn, err := grpc.Dial(grpcSocket, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("Failed to connect to %s", grpcSocket)
 	}
 	client := api.NewCacheClient(conn)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	log.Printf("about to fetch all keys\n")
+
 	keyResp, err := client.AllKeys(ctx, &api.AllKeysRequest{
 		Pattern: "",
 	})
 	if err != nil {
 		return err
 	}
-	log.Printf("about to fetch all records\n")
 	recStream, err := client.AllRecords(ctx, &api.AllRecordsRequest{
 		Keys: keyResp.Keys,
 	})
 	if err != nil {
 		return err
 	}
-
-	log.Printf("streaming records\n")
 	for {
 		record, err := recStream.Recv()
 		if err == io.EOF {
@@ -169,7 +149,6 @@ func handleJoin(m serf.Member) error {
 		if err != nil {
 			return err
 		}
-		log.Printf("inserting\n")
 		if err = store.Insert(record.Record.Key, record.Record.Value, int(record.Ttl)); err != nil {
 			return err
 		}
