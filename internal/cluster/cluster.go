@@ -30,19 +30,7 @@ type Specification struct {
 	Name          string `envconfig:"NAME"`
 }
 
-type connectionPool map[string]*grpc.ClientConn
-
-func (c connectionPool) Close() {
-	for k, conn := range c {
-		conn.Close()
-		delete(c, k)
-	}
-}
-
-var pool connectionPool
-
 func SetupNode(bindAddr, bindPort, advertiseAddr, advertisePort, name string, grpcPort int) (*serf.Serf, chan serf.Event, error) {
-	pool = make(connectionPool)
 	// allows separation of members with the same name from env
 	id := strings.Split(uuid.NewString(), "-")[0]
 	uname := fmt.Sprintf("%s-%s", name, id)
@@ -91,7 +79,10 @@ func HandleSerfEvent(e serf.Event, node *serf.Serf) {
 			if isLocal(node, member) {
 				continue
 			}
-			handleJoin(member)
+			err := handleJoin(member)
+			if err != nil {
+				log.Printf("error handling member join: %e", err)
+			}
 		}
 	case serf.EventMemberLeave, serf.EventMemberFailed:
 		for _, member := range e.(serf.MemberEvent).Members {
@@ -108,7 +99,10 @@ func HandleSerfEvent(e serf.Event, node *serf.Serf) {
 			handleUpdate(member)
 		}
 	case serf.EventUser:
-		handleCustomEvent(e.(serf.UserEvent))
+		err := handleCustomEvent(e.(serf.UserEvent))
+		if err != nil {
+			log.Printf("error handling custom event: %e", err)
+		}
 	}
 }
 
@@ -122,7 +116,7 @@ func handleJoin(m serf.Member) error {
 	var err error
 	conn, err := grpc.Dial(grpcSocket, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return fmt.Errorf("Failed to connect to %s", grpcSocket)
+		return fmt.Errorf("failed to connect to %s", grpcSocket)
 	}
 	client := api.NewCacheClient(conn)
 
