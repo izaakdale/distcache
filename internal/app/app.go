@@ -2,15 +2,15 @@ package app
 
 import (
 	"fmt"
+	"github.com/izaakdale/distcache/internal/consensus"
+	"github.com/izaakdale/distcache/internal/discovery"
 	"log"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/hashicorp/serf/serf"
 	msg "github.com/izaakdale/distcache/api/v1"
-	"github.com/izaakdale/distcache/internal/cluster"
 	"github.com/izaakdale/distcache/internal/store"
 	"github.com/kelseyhightower/envconfig"
 	"google.golang.org/grpc"
@@ -18,8 +18,7 @@ import (
 )
 
 var (
-	spec              specification
-	clusterMembership *serf.Serf
+	spec specification
 )
 
 type specification struct {
@@ -30,7 +29,7 @@ type specification struct {
 	DB        int    `envconfig:"DB"`
 	RecordTTL int    `envconfig:"RECORD_TTL"`
 
-	clutserCfg cluster.Specification
+	discoveryCfg discovery.Specification
 }
 
 type App struct {
@@ -42,7 +41,7 @@ func New() (*App, error) {
 	if err := envconfig.Process("", &spec); err != nil {
 		return nil, err
 	}
-	if err := envconfig.Process("", &spec.clutserCfg); err != nil {
+	if err := envconfig.Process("", &spec.discoveryCfg); err != nil {
 		return nil, err
 	}
 
@@ -90,24 +89,19 @@ func New() (*App, error) {
 }
 
 func (a *App) Run() error {
-	node, evCh, err := cluster.SetupNode(
-		spec.clutserCfg.BindAddr,      // BIND defines where the agent listens for incomming connections
-		spec.clutserCfg.BindPort,      // in k8s this would be the ip and port of the pod/container
-		spec.clutserCfg.AdvertiseAddr, // ADVERTISE defines where the agent is reachable
-		spec.clutserCfg.AdvertisePort, // in k8s this correlates to the cluster ip service
-		spec.clutserCfg.Name,          // NAME must be unique, which is not possible for replicas with env vars. Uniqueness handled in setup
-		spec.GRCPPort,
-	)
+	membership, err := discovery.NewMembership(&consensus.DistributedCache{}, spec.discoveryCfg, spec.GRCPPort)
 	if err != nil {
 		return err
 	}
-	clusterMembership = node
-	defer node.Leave()
 
 	// create error channel for the grpc server to relay information back to app
 	errCh := make(chan error)
 	go func(ch chan error) {
 		ch <- a.gsrv.Serve(a.ln)
+	}(errCh)
+
+	defer func(ch chan error) {
+		ch <- membership.Node.Leave()
 	}(errCh)
 
 	// signal channel for the os/k8s
@@ -121,8 +115,8 @@ Loop:
 		case <-shCh:
 			break Loop
 		// serf event channel
-		case ev := <-evCh:
-			cluster.HandleSerfEvent(ev, node)
+		case ev := <-membership.EventChan:
+			membership.HandleSerfEvent(ev, membership.Node)
 		// grpc error
 		case err := <-errCh:
 			return err

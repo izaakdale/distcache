@@ -10,11 +10,10 @@ import (
 	"github.com/izaakdale/distcache/internal/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
 
 // ensure our server adheres to grpc cache server
-var _ (api.CacheServer) = (*Server)(nil)
+var _ api.CacheServer = (*Server)(nil)
 
 type Server struct {
 	api.UnimplementedCacheServer
@@ -25,13 +24,13 @@ func (s *Server) Store(ctx context.Context, req *api.StoreRequest) (*api.StoreRe
 	if err != nil {
 		return nil, err
 	}
-	bytes, err := proto.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	if err := clusterMembership.UserEvent("value-stored", bytes, false); err != nil {
-		return nil, err
-	}
+	//bytes, err := proto.Marshal(req)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//if err := clusterMembership.UserEvent("value-stored", bytes, false); err != nil {
+	//	return nil, err
+	//}
 	return &api.StoreResponse{}, nil
 }
 func (s *Server) Fetch(ctx context.Context, req *api.FetchRequest) (*api.FetchResponse, error) {
@@ -59,14 +58,14 @@ func (s *Server) AllKeys(ctx context.Context, req *api.AllKeysRequest) (*api.All
 	}
 	return &api.AllKeysResponse{Keys: keys}, nil
 }
-func (c *Server) AllRecords(req *api.AllRecordsRequest, srv api.Cache_AllRecordsServer) error {
+func (s *Server) AllRecords(req *api.AllRecordsRequest, srv api.Cache_AllRecordsServer) error {
 	var notFoundKeys []string
-	var notFound bool = false
+	notFound := false
 	for _, key := range req.Keys {
 		val, err := store.Fetch(key)
 		if err != nil {
 			if err == redis.Nil {
-				// don't want to stop here, retrieve as many keys as possible then alert to missing ones.
+				// don't want to stop here, retrieve as many keys as possible and then alert to missing ones.
 				notFound = true
 				notFoundKeys = append(notFoundKeys, key)
 				continue
@@ -82,13 +81,16 @@ func (c *Server) AllRecords(req *api.AllRecordsRequest, srv api.Cache_AllRecords
 			st := status.New(codes.Internal, "ttl returned as nil from store")
 			return st.Err()
 		}
-		srv.Send(&api.AllRecordsResponse{
+		err = srv.Send(&api.AllRecordsResponse{
 			Record: &api.KVRecord{
 				Key:   key,
 				Value: val,
 			},
 			Ttl: *ttl,
 		})
+		if err != nil {
+			return err
+		}
 	}
 	if notFound {
 		// list will be in format "not_found_keys:key1/key2/key3"
