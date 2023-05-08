@@ -1,9 +1,14 @@
 package app
 
 import (
+	"bytes"
 	"fmt"
+	"github.com/hashicorp/raft"
+	config "github.com/izaakdale/distcache/internal/auth"
 	"github.com/izaakdale/distcache/internal/consensus"
 	"github.com/izaakdale/distcache/internal/discovery"
+	cmux2 "github.com/soheilhy/cmux"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -33,8 +38,10 @@ type specification struct {
 }
 
 type App struct {
+	mux  cmux2.CMux
 	ln   net.Listener
 	gsrv *grpc.Server
+	dist *consensus.DistributedCache
 }
 
 func New() (*App, error) {
@@ -57,70 +64,90 @@ func New() (*App, error) {
 		panic(err)
 	}
 
-	////TODO fill in new dist
-	//dist, err := consensus.NewDistributedCache("test", consensus.Config{
-	//	Txer: cli,
-	//	Raft: &consensus.Raft{
-	//		Config:      raft.Config{},
-	//		BindAddr:    "",
-	//		StreamLayer: nil,
-	//		Bootstrap:   false,
-	//	},
-	//})
-	//if err != nil {
-	//	panic(err)
-	//}
-	////TODO
-	//_ = dist
-
 	gAddr := fmt.Sprintf("%s:%d", spec.GRPCHost, spec.GRCPPort)
 	ln, err := net.Listen("tcp", gAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	srv := Server{
-		Txer: cli,
-	}
-	// for mTLS, leaving for now since I want to test via ingress
-	// cfg, err := config.SetupTLSConfig(config.TLSConfig{
-	// 	CertFile:      config.ServerCertFile,
-	// 	KeyFile:       config.ServerKeyFile,
-	// 	CAFile:        config.CAFile,
-	// 	Server:        true,
-	// 	ServerAddress: ln.Addr().String(),
-	// })
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// creds := credentials.NewTLS(cfg)
-
 	gsrv := grpc.NewServer() //grpc.Creds(creds))
 	reflection.Register(gsrv)
 
+	srv := Server{
+		Txer: cli,
+	}
 	v1.RegisterCacheServer(gsrv, &srv)
+
+	mux := cmux2.New(ln)
+	raftLn := mux.Match(func(r io.Reader) bool {
+		b := make([]byte, 1)
+		if _, err := r.Read(b); err != nil {
+			return false
+		}
+		return bytes.Compare(b, []byte{byte(consensus.RaftRPC)}) == 0
+	})
+
+	srvcfg, err := config.SetupTLSConfig(config.TLSConfig{
+		CertFile:      config.ServerCertFile,
+		KeyFile:       config.ServerKeyFile,
+		CAFile:        config.CAFile,
+		Server:        true,
+		ServerAddress: raftLn.Addr().String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	clicfg, err := config.SetupTLSConfig(config.TLSConfig{
+		CertFile:      config.ClientCertFile,
+		KeyFile:       config.ClientKeyFile,
+		CAFile:        config.CAFile,
+		Server:        false,
+		ServerAddress: raftLn.Addr().String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	dist, err := consensus.NewDistributedCache("test", consensus.Config{
+		Txer: cli,
+		Raft: &consensus.Raft{
+			Config: raft.Config{
+				LocalID: "TODO", //TODO
+			},
+			BindAddr:    gAddr,
+			StreamLayer: consensus.NewStreamLayer(raftLn, srvcfg, clicfg),
+			Bootstrap:   false,
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
 
 	return &App{
 		ln:   ln,
 		gsrv: gsrv,
+		dist: dist,
+		mux:  mux,
 	}, nil
 }
 
 func (a *App) Run() error {
-	membership, err := discovery.NewMembership(&consensus.DistributedCache{}, spec.discoveryCfg, spec.GRCPPort)
+	membership, err := discovery.NewMembership(a.dist, spec.discoveryCfg, spec.GRCPPort)
 	if err != nil {
 		return err
 	}
 
 	// create error channel for the grpc server to relay information back to app
 	errCh := make(chan error)
+	grpcLn := a.mux.Match(cmux2.Any())
 	go func(ch chan error) {
-		ch <- a.gsrv.Serve(a.ln)
+		ch <- a.gsrv.Serve(grpcLn)
 	}(errCh)
-
-	defer func(ch chan error) {
-		ch <- membership.Node.Leave()
+	go func(ch chan error) {
+		ch <- a.mux.Serve()
 	}(errCh)
+	defer membership.Node.Leave()
 
 	// signal channel for the os/k8s
 	shCh := make(chan os.Signal, 2)

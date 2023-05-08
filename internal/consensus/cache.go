@@ -23,24 +23,24 @@ func NewDistributedCache(dataDir string, cfg Config) (*DistributedCache, error) 
 func (d *DistributedCache) setupRaft(dataDir string) error {
 	fsm := &fsm{d.config.Txer}
 
-	logDir := filepath.Join(dataDir, "raft", "log")
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	raftDir := filepath.Join(dataDir, "raft")
+	if err := os.MkdirAll(raftDir, 0755); err != nil {
 		return err
 	}
 
-	logStore, err := raftboltdb.NewBoltStore(filepath.Join(dataDir, "raft", "log"))
+	logStore, err := raftboltdb.NewBoltStore(filepath.Join(raftDir, "log"))
 	if err != nil {
 		return err
 	}
 
-	stableStore, err := raftboltdb.NewBoltStore(filepath.Join(dataDir, "raft", "stable"))
+	stableStore, err := raftboltdb.NewBoltStore(filepath.Join(raftDir, "stable"))
 	if err != nil {
 		return err
 	}
 
 	retain := 1
 	snapshotStore, err := raft.NewFileSnapshotStore(
-		filepath.Join(dataDir, "raft", "snapshot"),
+		filepath.Join(dataDir, "raft"),
 		retain,
 		os.Stderr,
 	)

@@ -36,7 +36,7 @@ spec:
             - name: CLUSTER_PORT
               value: "7777"
             - name: NAME
-              value: distcache
+              value: distcache-0
             - name: CONFIG_DIR
               value: /etc
           resources:

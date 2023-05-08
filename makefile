@@ -8,6 +8,8 @@ run:
  	ADVERTISE_ADDR=127.0.0.1 \
 	ADVERTISE_PORT=7777 \
 	NAME=a1 \
+	CONFIG_DIR=/Users/izaakdale/.distcache \
+	ENV=local \
 	go run .
 
 docker:

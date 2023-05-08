@@ -67,20 +67,11 @@ func (s *Server) AllRecords(req *api.AllRecordsRequest, srv api.Cache_AllRecords
 				return err
 			}
 		}
-		//ttl, err := s.txer.GetTTL(key)
-		//if err != nil {
-		//	return err
-		//}
-		//if ttl == nil {
-		//	st := status.New(codes.Internal, "ttl returned as nil from store")
-		//	return st.Err()
-		//}
 		err = srv.Send(&api.AllRecordsResponse{
 			Record: &api.KVRecord{
 				Key:   key,
 				Value: val,
 			},
-			//Ttl: *ttl,
 		})
 		if err != nil {
 			return err
