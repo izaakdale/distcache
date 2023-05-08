@@ -70,7 +70,14 @@ func (c *Client) Insert(k, v string, ttl int) error {
 	return c.Set(k, v, t).Err()
 }
 func (c *Client) Fetch(k string) (string, error) {
-	return c.Get(k).Result()
+	val, err := c.Get(k).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return "", ErrRecordNotFound
+		}
+		return "", err
+	}
+	return val, err
 }
 func (c *Client) AllKeys(pattern string) ([]string, error) {
 	var keys []string
