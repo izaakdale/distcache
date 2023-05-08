@@ -9,7 +9,7 @@ message KVRecord {
 }
 message StoreRequest {
     KVRecord record = 1;
-    int32 ttl = 2;
+//    int32 ttl = 2;
 }
 message StoreResponse {  
 }
@@ -31,7 +31,7 @@ message AllRecordsRequest {
 }
 message AllRecordsResponse {
     KVRecord record = 1;
-    int32 ttl = 2;
+//    int32 ttl = 2;
 }
 
 service Cache {

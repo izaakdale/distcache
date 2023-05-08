@@ -6,7 +6,6 @@ import (
 
 	v1 "github.com/izaakdale/distcache/api/v1"
 	"github.com/izaakdale/distcache/internal/app"
-	"github.com/izaakdale/distcache/internal/store"
 	"github.com/izaakdale/distcache/internal/store/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -14,10 +13,9 @@ import (
 
 func TestServer(t *testing.T) {
 	ctx := context.Background()
-	err := store.Init(store.WithTransactioner(&mock.MockStorePass{}))
-	defer store.Reset()
-	require.NoError(t, err)
-	s := app.Server{}
+	s := app.Server{
+		Txer: mock.New(),
+	}
 
 	t.Run("store pass", func(t *testing.T) {
 		resp, err := s.Store(ctx, &v1.StoreRequest{
@@ -25,7 +23,6 @@ func TestServer(t *testing.T) {
 				Key:   mock.Key1,
 				Value: mock.Val1,
 			},
-			Ttl: 0,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
@@ -51,13 +48,13 @@ func TestServer(t *testing.T) {
 	t.Run("", func(t *testing.T) {
 		m := mockstream{}
 		err := s.AllRecords(&v1.AllRecordsRequest{
-			Keys: []string{mock.Key1, mock.Key1},
+			Keys: []string{mock.Key1, mock.Key2},
 		}, &m)
 		require.NoError(t, err)
 
 		// check twice since the mock fetches the same record
 		require.Equal(t, &v1.KVRecord{Key: mock.Key1, Value: mock.Val1}, &m.records[0])
-		require.Equal(t, &v1.KVRecord{Key: mock.Key1, Value: mock.Val1}, &m.records[1])
+		require.Equal(t, &v1.KVRecord{Key: mock.Key2, Value: mock.Val2}, &m.records[1])
 	})
 }
 

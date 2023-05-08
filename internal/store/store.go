@@ -1,53 +1,34 @@
 package store
 
 import (
-	"errors"
+	"github.com/go-redis/redis"
+	"github.com/pkg/errors"
 	"log"
 	"time"
-
-	"github.com/go-redis/redis"
 )
 
 var (
-	client                  Transactioner
-	ErrClientNotInitialised = errors.New("store client not set")
+	_ Transactioner = (*Client)(nil)
+
+	ErrRecordNotFound = errors.New("no record matches that key") //TODO add return where applicable
 )
 
+type Client struct {
+	RedisTransactioner
+}
+
 type Transactioner interface {
+	Insert(k, v string, ttl int) error
+	Fetch(k string) (string, error)
+	AllKeys(pattern string) ([]string, error)
+	//Reader() io.Reader
+}
+
+type RedisTransactioner interface {
 	Ping() *redis.StatusCmd
 	Set(key string, value interface{}, expiration time.Duration) *redis.StatusCmd
 	Get(key string) *redis.StringCmd
 	Scan(cursor uint64, match string, count int64) *redis.ScanCmd
-	TTL(key string) *redis.DurationCmd
-}
-
-func Init(opts ...options) error {
-	if opts == nil {
-		return ErrClientNotInitialised
-	}
-	for _, opt := range opts {
-		if opt.txer != nil {
-			client = opt.txer
-		}
-		if opt.cfg != nil {
-			// set up client normal redis way
-			client = redis.NewClient(&redis.Options{
-				Addr:     opt.cfg.RedisAddr,
-				Password: opt.cfg.Password,
-				DB:       opt.cfg.DB,
-			})
-		}
-	}
-	if client.Ping().Err() != nil {
-		log.Printf("backing off connection for 3s\n")
-		time.Sleep(3 * time.Second)
-		Init(opts...)
-	}
-	return nil
-}
-
-func Reset() {
-	client = nil
 }
 
 type Config struct {
@@ -57,31 +38,43 @@ type Config struct {
 	RecordTTL int
 }
 
-func WithTransactioner(txer Transactioner) options {
-	return options{txer: txer}
-}
-func WithConfig(cfg Config) options {
-	return options{cfg: &cfg}
-}
-
-type options struct {
-	txer Transactioner
-	cfg  *Config
-}
-
-func Insert(k, v string, ttl int) error {
-	if client == nil {
-		return ErrClientNotInitialised
+func New(opts ...options) (*Client, error) {
+	if opts == nil {
+		return nil, errors.New("must provide a config or redis transactioner.")
 	}
+	var client *Client
+	for _, opt := range opts {
+		if opt.cfg != nil {
+			client = &Client{
+				redis.NewClient(&redis.Options{
+					Addr:     opt.cfg.RedisAddr,
+					Password: opt.cfg.Password,
+					DB:       opt.cfg.DB,
+				}),
+			}
+			if client.Ping().Err() != nil {
+				log.Printf("backing off connection for 3s\n")
+				time.Sleep(3 * time.Second)
+				return New(opt)
+			}
+		}
+		if opt.txer != nil {
+			client = &Client{opt.txer}
+		}
+	}
+	return client, nil
+}
+
+func (c *Client) Insert(k, v string, ttl int) error {
 	t := time.Second * time.Duration(ttl)
-	return client.Set(k, v, t).Err()
+	return c.Set(k, v, t).Err()
 }
-func Fetch(k string) (string, error) {
-	return client.Get(k).Result()
+func (c *Client) Fetch(k string) (string, error) {
+	return c.Get(k).Result()
 }
-func AllKeys(pattern string) ([]string, error) {
+func (c *Client) AllKeys(pattern string) ([]string, error) {
 	var keys []string
-	iter := client.Scan(0, pattern, 0).Iterator()
+	iter := c.Scan(0, pattern, 0).Iterator()
 	for iter.Next() {
 		keys = append(keys, iter.Val())
 	}
@@ -90,11 +83,15 @@ func AllKeys(pattern string) ([]string, error) {
 	}
 	return keys, nil
 }
-func GetTTL(key string) (*int32, error) {
-	dur, err := client.TTL(key).Result()
-	if err != nil {
-		return nil, err
-	}
-	ttl := int32(dur.Seconds())
-	return &ttl, nil
+
+func WithTransactioner(txer RedisTransactioner) options {
+	return options{txer: txer}
+}
+func WithConfig(cfg Config) options {
+	return options{cfg: &cfg}
+}
+
+type options struct {
+	txer RedisTransactioner
+	cfg  *Config
 }

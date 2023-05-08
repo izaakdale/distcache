@@ -1,9 +1,7 @@
 package mock
 
 import (
-	"time"
-
-	"github.com/go-redis/redis"
+	"github.com/izaakdale/distcache/internal/store"
 )
 
 var (
@@ -13,23 +11,40 @@ var (
 	Val2 = "vera"
 )
 
-type MockStorePass struct{}
+var (
+	_ store.Transactioner = (*Store)(nil)
+)
 
-func (t *MockStorePass) Ping() *redis.StatusCmd {
-	return redis.NewStatusResult("", nil)
+func New() *Store {
+	return &Store{
+		Cache: map[string]string{
+			Key1: Val1,
+			Key2: Val2,
+		},
+	}
 }
-func (t *MockStorePass) Set(key string, value interface{}, expiration time.Duration) *redis.StatusCmd {
-	return redis.NewStatusResult(key, nil)
+
+type Store struct {
+	Cache map[string]string
 }
-func (t *MockStorePass) Get(key string) *redis.StringCmd {
-	return redis.NewStringResult(Val1, nil)
+
+func (s *Store) Insert(k, v string, ttl int) error {
+	s.Cache[k] = v
+	return nil
 }
-func (t *MockStorePass) Keys(pattern string) *redis.StringSliceCmd {
-	return redis.NewStringSliceCmd(Key1, Key2)
+
+func (s *Store) Fetch(k string) (string, error) {
+	val, ok := s.Cache[k]
+	if !ok {
+		return "", store.ErrRecordNotFound
+	}
+	return val, nil
 }
-func (t *MockStorePass) Scan(cursor uint64, match string, count int64) *redis.ScanCmd {
-	return redis.NewScanCmdResult([]string{Key1, Key2}, 0, nil)
-}
-func (t *MockStorePass) TTL(key string) *redis.DurationCmd {
-	return redis.NewDurationResult(-1*time.Second, nil)
+
+func (s *Store) AllKeys(pattern string) ([]string, error) {
+	var ret []string
+	for k, _ := range s.Cache {
+		ret = append(ret, k)
+	}
+	return ret, nil
 }

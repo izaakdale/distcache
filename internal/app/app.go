@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	msg "github.com/izaakdale/distcache/api/v1"
+	"github.com/izaakdale/distcache/api/v1"
 	"github.com/izaakdale/distcache/internal/store"
 	"github.com/kelseyhightower/envconfig"
 	"google.golang.org/grpc"
@@ -45,18 +45,33 @@ func New() (*App, error) {
 		return nil, err
 	}
 
-	if err := store.Init(
-		store.WithConfig(
-			store.Config{
-				RedisAddr: spec.RedisAddr,
-				Password:  spec.Password,
-				DB:        spec.DB,
-				RecordTTL: spec.RecordTTL,
-			},
-		),
-	); err != nil {
-		return nil, err
+	cli, err := store.New(
+		store.WithConfig(store.Config{
+			RedisAddr: spec.RedisAddr,
+			Password:  spec.Password,
+			DB:        spec.DB,
+			RecordTTL: spec.RecordTTL,
+		}),
+	)
+	if err != nil {
+		panic(err)
 	}
+
+	////TODO fill in new dist
+	//dist, err := consensus.NewDistributedCache("test", consensus.Config{
+	//	Txer: cli,
+	//	Raft: &consensus.Raft{
+	//		Config:      raft.Config{},
+	//		BindAddr:    "",
+	//		StreamLayer: nil,
+	//		Bootstrap:   false,
+	//	},
+	//})
+	//if err != nil {
+	//	panic(err)
+	//}
+	////TODO
+	//_ = dist
 
 	gAddr := fmt.Sprintf("%s:%d", spec.GRPCHost, spec.GRCPPort)
 	ln, err := net.Listen("tcp", gAddr)
@@ -64,7 +79,10 @@ func New() (*App, error) {
 		return nil, err
 	}
 
-	srv := Server{}
+	srv := Server{
+		Txer: cli,
+	}
+	// for mTLS, leaving for now since I want to test via ingress
 	// cfg, err := config.SetupTLSConfig(config.TLSConfig{
 	// 	CertFile:      config.ServerCertFile,
 	// 	KeyFile:       config.ServerKeyFile,
@@ -80,7 +98,7 @@ func New() (*App, error) {
 	gsrv := grpc.NewServer() //grpc.Creds(creds))
 	reflection.Register(gsrv)
 
-	msg.RegisterCacheServer(gsrv, &srv)
+	v1.RegisterCacheServer(gsrv, &srv)
 
 	return &App{
 		ln:   ln,

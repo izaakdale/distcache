@@ -10,38 +10,6 @@ run:
 	NAME=a1 \
 	go run .
 
-docker_run:
-	docker run -d -p 5001:5001 \
-	-e GRPC_PORT=5001 \
-	-e REDIS_ADDR=redis:6379 \
-	-e DB=0 \
-	-e RECORD_TTL=0 \
-	--network backend \
-	--name distcache distcache
-
-docker_run_serf1:
-	docker run -d -p 6666:6666 -p 6666:6666/udp \
-	-e BIND_ADDR=127.0.0.1 \
-	-e BIND_PORT=6666 \
-	-e ADVERTISE_ADDR=127.0.0.1 \
-	-e ADVERTISE_PORT=6666 \
-	-e CLUSTER_ADDR=127.0.0.1 \
-	-e CLUSTER_PORT=6666 \
-	-e NAME=a1 \
-	--network host \
-	--name serfer1 serfer
-docker_run_serf2:
-	docker run -d -p 6667:6667 -p 6667:6667/udp \
-	-e BIND_ADDR=127.0.0.1 \
-	-e BIND_PORT=6667 \
-	-e ADVERTISE_ADDR=127.0.0.1 \
-	-e ADVERTISE_PORT=6667 \
-	-e CLUSTER_ADDR=127.0.0.1 \
-	-e CLUSTER_PORT=6666 \
-	-e NAME=a2 \
-	--network host \
-	--name serfer2 serfer
-
 docker:
 	docker build -t distcache .
 
@@ -53,7 +21,6 @@ gproto:
 	--go_opt=paths=source_relative \
 	--go-grpc_opt=paths=source_relative \
 	--proto_path=.
-
 
 init:
 	mkdir -p ${CONFIG_PATH}

@@ -17,24 +17,18 @@ var _ api.CacheServer = (*Server)(nil)
 
 type Server struct {
 	api.UnimplementedCacheServer
+	Txer store.Transactioner
 }
 
 func (s *Server) Store(ctx context.Context, req *api.StoreRequest) (*api.StoreResponse, error) {
-	err := store.Insert(req.Record.Key, req.Record.Value, int(req.Ttl))
+	err := s.Txer.Insert(req.Record.Key, req.Record.Value, spec.RecordTTL)
 	if err != nil {
 		return nil, err
 	}
-	//bytes, err := proto.Marshal(req)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//if err := clusterMembership.UserEvent("value-stored", bytes, false); err != nil {
-	//	return nil, err
-	//}
 	return &api.StoreResponse{}, nil
 }
 func (s *Server) Fetch(ctx context.Context, req *api.FetchRequest) (*api.FetchResponse, error) {
-	val, err := store.Fetch(req.Key)
+	val, err := s.Txer.Fetch(req.Key)
 	if err != nil {
 		if err == redis.Nil {
 			st := status.New(codes.NotFound, "no record for key")
@@ -45,7 +39,7 @@ func (s *Server) Fetch(ctx context.Context, req *api.FetchRequest) (*api.FetchRe
 	return &api.FetchResponse{Value: val}, nil
 }
 func (s *Server) AllKeys(ctx context.Context, req *api.AllKeysRequest) (*api.AllKeysResponse, error) {
-	keys, err := store.AllKeys(req.Pattern)
+	keys, err := s.Txer.AllKeys(req.Pattern)
 	if err != nil {
 		if err != nil {
 			if err == redis.Nil {
@@ -62,7 +56,7 @@ func (s *Server) AllRecords(req *api.AllRecordsRequest, srv api.Cache_AllRecords
 	var notFoundKeys []string
 	notFound := false
 	for _, key := range req.Keys {
-		val, err := store.Fetch(key)
+		val, err := s.Txer.Fetch(key)
 		if err != nil {
 			if err == redis.Nil {
 				// don't want to stop here, retrieve as many keys as possible and then alert to missing ones.
@@ -73,20 +67,20 @@ func (s *Server) AllRecords(req *api.AllRecordsRequest, srv api.Cache_AllRecords
 				return err
 			}
 		}
-		ttl, err := store.GetTTL(key)
-		if err != nil {
-			return err
-		}
-		if ttl == nil {
-			st := status.New(codes.Internal, "ttl returned as nil from store")
-			return st.Err()
-		}
+		//ttl, err := s.txer.GetTTL(key)
+		//if err != nil {
+		//	return err
+		//}
+		//if ttl == nil {
+		//	st := status.New(codes.Internal, "ttl returned as nil from store")
+		//	return st.Err()
+		//}
 		err = srv.Send(&api.AllRecordsResponse{
 			Record: &api.KVRecord{
 				Key:   key,
 				Value: val,
 			},
-			Ttl: *ttl,
+			//Ttl: *ttl,
 		})
 		if err != nil {
 			return err
