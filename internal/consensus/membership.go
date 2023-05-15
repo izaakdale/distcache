@@ -6,7 +6,7 @@ import (
 )
 
 func (d *DistributedCache) Join(name, addr string) error {
-	log.Printf("--------here--------")
+	log.Printf("-------- member joining --------")
 	configFuture := d.raft.GetConfiguration()
 	if err := configFuture.Error(); err != nil {
 		return err
@@ -14,6 +14,7 @@ func (d *DistributedCache) Join(name, addr string) error {
 
 	serverID := raft.ServerID(name)
 	serverAddr := raft.ServerAddress(addr)
+	log.Printf("%s @ %s", serverID, serverAddr)
 	for _, srv := range configFuture.Configuration().Servers {
 		if srv.ID == serverID || srv.Address == serverAddr {
 			// server already join
@@ -25,6 +26,7 @@ func (d *DistributedCache) Join(name, addr string) error {
 			return err
 		}
 	}
+	log.Printf("------!!!!-----%s-----!!!!!------", serverID)
 	addFuture := d.raft.AddVoter(serverID, serverAddr, 0, 0)
 	if err := addFuture.Error(); err != nil {
 		return err
@@ -33,6 +35,7 @@ func (d *DistributedCache) Join(name, addr string) error {
 }
 
 func (d *DistributedCache) Leave(name string) error {
+	log.Printf("--------- member leaving --------")
 	removeFuture := d.raft.RemoveServer(raft.ServerID(name), 0, 0)
 	return removeFuture.Error()
 }

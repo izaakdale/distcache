@@ -23,6 +23,7 @@ func (f *fsm) Apply(record *raft.Log) any {
 	reqType := RequestType(buf[0])
 	switch reqType {
 	case AppendRequestType:
+		log.Printf("------- appending -------")
 		return f.applyAppend(buf[1:])
 	}
 	return nil
@@ -34,6 +35,7 @@ func (f *fsm) applyAppend(b []byte) any {
 	if err != nil {
 		return err
 	}
+	log.Printf("------- txer insert -------")
 	err = f.txer.Insert(req.Record.Key, req.Record.Key, 0) //TODO remove 0
 	if err != nil {
 		return err

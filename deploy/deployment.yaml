@@ -17,6 +17,10 @@ spec:
           image: distcache
           imagePullPolicy: Never
           env:
+            - name: GRPC_ADDR
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
             - name: GRPC_PORT
               value: "5001"
             - name: REDIS_ADDR
@@ -39,6 +43,7 @@ spec:
               value: distcache-0
             - name: CONFIG_DIR
               value: /etc
+
           resources:
             limits:
               memory: "128Mi"

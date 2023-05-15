@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/hashicorp/raft"
+	"log"
 	"net"
 	"time"
 )
@@ -20,6 +21,7 @@ func NewStreamLayer(ln net.Listener, serverTLSConfig, peerTLSConfig *tls.Config)
 }
 
 func (s *StreamLayer) Dial(addr raft.ServerAddress, timeout time.Duration) (net.Conn, error) {
+	log.Printf("--------- dialing --------")
 	dialer := &net.Dialer{Timeout: timeout}
 	var conn, err = dialer.Dial("tcp", string(addr))
 	if err != nil {
@@ -36,6 +38,7 @@ func (s *StreamLayer) Dial(addr raft.ServerAddress, timeout time.Duration) (net.
 }
 
 func (s *StreamLayer) Accept() (net.Conn, error) {
+	log.Printf("--------- accepting --------")
 	conn, err := s.ln.Accept()
 	if err != nil {
 		return nil, err

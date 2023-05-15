@@ -1,6 +1,7 @@
 package consensus
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -90,6 +91,16 @@ func (d *DistributedCache) setupRaft(dataDir string) error {
 	// if err != nil {
 	// 	return err
 	// }
+
+	future := d.raft.GetConfiguration()
+	if err := future.Error(); err != nil {
+		return err
+	}
+	log.Printf("------ servers %+v ------", future.Configuration().Servers)
+	if len(future.Configuration().Servers) == 0 {
+		d.config.Raft.Bootstrap = true
+	}
+
 	if d.config.Raft.Bootstrap { // && !hasState {
 		config := raft.Configuration{
 			Servers: []raft.Server{

@@ -34,9 +34,20 @@ message AllRecordsResponse {
 //    int32 ttl = 2;
 }
 
+message GetServersRequest {}
+message GetServersResponse {
+    repeated Server servers = 1;
+}
+message Server {
+    string id = 1;
+    string rpc_addr = 2;
+    bool is_leader = 3;
+}
+
 service Cache {
     rpc Store(StoreRequest) returns (StoreResponse);
     rpc Fetch(FetchRequest) returns (FetchResponse);
     rpc AllKeys(AllKeysRequest) returns (AllKeysResponse);
     rpc AllRecords(AllRecordsRequest) returns (stream AllRecordsResponse);
+    rpc GetServers(GetServersRequest) returns (GetServersResponse) {}
 }

@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/hashicorp/raft"
 	config "github.com/izaakdale/distcache/internal/auth"
 	"github.com/izaakdale/distcache/internal/consensus"
@@ -13,6 +14,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/izaakdale/distcache/api/v1"
@@ -109,17 +111,19 @@ func New() (*App, error) {
 		return nil, err
 	}
 
+	distName := fmt.Sprintf("%s-%s", "voter", strings.Split(uuid.NewString(), "-")[0])
 	dist, err := consensus.NewDistributedCache("test", consensus.Config{
 		Txer: cli,
 		Raft: &consensus.Raft{
 			Config: raft.Config{
-				LocalID: "TODO", //TODO
+				LocalID: raft.ServerID(distName), //TODO
 			},
 			BindAddr:    gAddr,
 			StreamLayer: consensus.NewStreamLayer(raftLn, srvcfg, clicfg),
-			Bootstrap:   false,
+			//Bootstrap:   true,
 		},
 	})
+
 	if err != nil {
 		panic(err)
 	}
